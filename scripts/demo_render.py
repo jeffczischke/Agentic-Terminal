@@ -71,6 +71,22 @@ tickers = {
              "darkpool": darkpool_recent[3:4], "flow": flow_alerts[5:6]},
 }
 
+# Synthetic equity account (shape matches what a Robinhood MCP pull provides:
+# positions + account summary). All values here are fake — the live path
+# injects the real account context at render time.
+equity = {
+    "nickname": "Demo",
+    "total_value": 25_000.00,
+    "cash": 12_000.00,
+    "buying_power": 12_000.00,
+    "positions": [
+        {"symbol": "NVDA", "quantity": 40.0, "average_buy_price": 120.00,
+         "last_price": 141.20, "previous_close": 139.50},
+        {"symbol": "WFC", "quantity": 100.0, "average_buy_price": 78.00,
+         "last_price": 74.10, "previous_close": 74.80},
+    ],
+}
+
 data = {
     "generated_at": "SAMPLE DATA — NOT A LIVE SCAN",
     "focus": ["NVDA", "AVGO", "AMD", "MRVL", "PLTR", "WFC"],
@@ -82,6 +98,7 @@ data = {
     "flow_alerts": flow_alerts,
     "news": news,
     "tickers": tickers,
+    "equity": equity,
 }
 data["confluence"] = score_confluence(data)
 
