@@ -3,12 +3,13 @@
 .env.*
 !.env.example
 
-# Generated dashboards + JSON snapshots
+# Generated dashboards + JSON snapshots (scan output)
 output/
 
 # Python
 __pycache__/
 *.py[cod]
+*$py.class
 *.egg-info/
 .eggs/
 build/
