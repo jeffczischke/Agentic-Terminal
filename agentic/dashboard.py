@@ -81,6 +81,12 @@ def _esc(v: Any) -> str:
     return html.escape(str(v)) if v is not None else ""
 
 
+def _mask_account(value: Any) -> str:
+    """Show only the last 4 digits of an account number (e.g. ••••7347)."""
+    s = str(value or "")
+    return f"••••{s[-4:]}" if len(s) >= 4 else s
+
+
 def _err_of(payload: Any) -> str | None:
     if isinstance(payload, dict) and "__error__" in payload:
         return str(payload["__error__"])
@@ -289,8 +295,7 @@ def render(data: dict[str, Any], account: dict[str, Any] | None = None) -> str:
             )
     else:
         news_items = f'<li class="f">{_esc(_err_of(data.get("news")) or "No headlines returned.")}</li>'
-    news_panel = _panel("Catalyst Tape", '<span class="g">LIVE</span>',
-                        f'<ul class="nt">{news_items}</ul>')
+    # news_panel is assembled with the other layout panels below (bottom row).
 
     # ---- market tide ----
     tide = data.get("market_tide")
@@ -343,12 +348,74 @@ def render(data: dict[str, Any], account: dict[str, Any] | None = None) -> str:
         "s4",
     )
 
+    # ---- equity positions (live from Robinhood via MCP) ----
+    # Read-only account context. This panel never triggers an order; execution
+    # stays in the brokerage with explicit per-order human confirmation.
+    equity = data.get("equity")
+    eq_err = _err_of(equity)
+    if not eq_err and isinstance(equity, dict) and _rows(equity.get("positions")):
+        pos_rows = []
+        for p in _rows(equity.get("positions")):
+            sym = _pick(p, "symbol", "ticker", default="?")
+            qty = _f(_pick(p, "quantity", "shares"))
+            avg = _f(_pick(p, "average_buy_price", "avg_cost"))
+            last = _f(_pick(p, "last_price", "price"))
+            prev = _f(_pick(p, "previous_close", "prev_close"), default=last)
+            mkt = qty * last
+            cost = qty * avg
+            upnl = mkt - cost
+            upnl_pct = (upnl / cost * 100) if cost else 0.0
+            day = qty * (last - prev)
+            pcls = "g" if upnl >= 0 else "r"
+            dcls = "g" if day >= 0 else "r"
+            pos_rows.append(
+                [
+                    f'<td class="sym">{_esc(sym)}</td>',
+                    f'<td class="num">{qty:,.4f}</td>',
+                    f'<td class="num">{avg:,.2f}</td>',
+                    f'<td class="num">{last:,.2f}</td>',
+                    f'<td class="num"><b>${mkt:,.2f}</b></td>',
+                    f'<td class="num {pcls}"><b>{upnl:+,.2f}</b> <span class="f">{upnl_pct:+.1f}%</span></td>',
+                    f'<td class="num {dcls}">{day:+,.2f}</td>',
+                ]
+            )
+        tv = _f(equity.get("total_value"))
+        cash = _f(equity.get("cash"))
+        bp = _f(equity.get("buying_power"))
+        summary = (
+            '<div class="pb" style="border-bottom:1px solid var(--line)">'
+            f'<div class="kvline"><span class="kk">Account value</span><span><b>${tv:,.2f}</b></span></div>'
+            f'<div class="kvline"><span class="kk">Cash</span><span class="c">${cash:,.2f}</span></div>'
+            f'<div class="kvline"><span class="kk">Buying power</span><span class="c">${bp:,.2f}</span></div>'
+            "</div>"
+        )
+        eq_body = summary + _table(
+            ["SYM", "QTY", "AVG", "LAST", "MKT VAL", "UNREAL P&L", "DAY"],
+            pos_rows,
+            "No open equity positions.",
+        )
+    else:
+        eq_body = f'<div class="empty">{_esc(eq_err or "No Robinhood positions loaded.")}</div>'
+    nick = equity.get("nickname") if isinstance(equity, dict) else None
+    eq_panel = _panel(
+        "Equity Positions",
+        f'<span class="g">LIVE · ROBINHOOD{(" · " + _esc(nick)) if nick else ""}</span>',
+        eq_body,
+        "s8",
+    )
+
+    news_panel = _panel("Catalyst Tape", '<span class="g">LIVE</span>',
+                        f'<ul class="nt">{news_items}</ul>', "s8")
+
+    # Grid packs to 12 cols per row: [conf8+lat4] [flow6+dp6] [ins6+cong6]
+    # [eq8+tide4] [tech4+news8].
     body = "".join(
         [
             conf_panel, lat_panel,
             flow_panel, dp_panel,
             ins_panel, cong_panel,
-            tide_panel, tech_panel, news_panel,
+            eq_panel, tide_panel,
+            tech_panel, news_panel,
         ]
     )
 
@@ -358,7 +425,7 @@ def render(data: dict[str, Any], account: dict[str, Any] | None = None) -> str:
 <title>AGENTIC // TERMINAL</title><style>{CSS}</style></head><body>
 <div class="top">
   <div class="id"><span class="blink"></span>AGENTIC//TERMINAL
-    <span>· RH #{_esc(config.ACCOUNT_NUMBER)} · CASH</span></div>
+    <span>· RH #{_esc(_mask_account(config.ACCOUNT_NUMBER))} · CASH</span></div>
   <div class="meta">
     <span>GEN {_esc(gen)}</span>
     <span>SOURCE <b class="c">UNUSUAL WHALES REST</b></span>

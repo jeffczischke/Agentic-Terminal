@@ -1,3 +1,11 @@
+# Secrets — never commit real API keys. Copy .env.example to .env locally.
+.env
+.env.*
+!.env.example
+
+# Generated dashboards + JSON snapshots (scan output)
+output/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -12,14 +20,8 @@ dist/
 venv/
 env/
 
-# Environment / secrets
-.env
-.env.*
-!.env.example
-
-# Generated scan artifacts
-output/
-
-# OS / editor
+# OS / editor cruft
 .DS_Store
 *.swp
+.idea/
+.vscode/
