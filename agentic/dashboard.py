@@ -81,6 +81,12 @@ def _esc(v: Any) -> str:
     return html.escape(str(v)) if v is not None else ""
 
 
+def _mask_account(value: Any) -> str:
+    """Show only the last 4 digits of an account number (e.g. ••••7347)."""
+    s = str(value or "")
+    return f"••••{s[-4:]}" if len(s) >= 4 else s
+
+
 def _err_of(payload: Any) -> str | None:
     if isinstance(payload, dict) and "__error__" in payload:
         return str(payload["__error__"])
@@ -419,7 +425,7 @@ def render(data: dict[str, Any], account: dict[str, Any] | None = None) -> str:
 <title>AGENTIC // TERMINAL</title><style>{CSS}</style></head><body>
 <div class="top">
   <div class="id"><span class="blink"></span>AGENTIC//TERMINAL
-    <span>· RH #{_esc(config.ACCOUNT_NUMBER)} · CASH</span></div>
+    <span>· RH #{_esc(_mask_account(config.ACCOUNT_NUMBER))} · CASH</span></div>
   <div class="meta">
     <span>GEN {_esc(gen)}</span>
     <span>SOURCE <b class="c">UNUSUAL WHALES REST</b></span>
