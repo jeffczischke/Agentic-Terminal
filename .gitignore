@@ -20,6 +20,11 @@ env/
 # Generated scan artifacts
 output/
 
+# Deploy artifacts (generated each CI run)
+public/
+.vercel/
+node_modules/
+
 # OS / editor
 .DS_Store
 *.swp
