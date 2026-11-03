@@ -1,0 +1,78 @@
+name: scan-and-deploy
+
+# Runs the market scan on a schedule and deploys the freshly generated
+# dashboard to Vercel. The dashboard is a snapshot, so re-running on a
+# schedule is what keeps the hosted page "live".
+#
+# Required GitHub Actions secrets (Settings → Secrets and variables → Actions):
+#   UW_API_KEY        — your Unusual Whales API key
+#   VERCEL_TOKEN      — a Vercel access token (Vercel → Account → Tokens)
+#   VERCEL_ORG_ID     — from .vercel/project.json after `vercel link`
+#   VERCEL_PROJECT_ID — from .vercel/project.json after `vercel link`
+#
+# The password that gates the site lives in Vercel's own env vars
+# (BASIC_AUTH_USER / BASIC_AUTH_PASSWORD), not here — see middleware.ts.
+
+on:
+  schedule:
+    # Every 30 min, 13:00–21:00 UTC, Mon–Fri — roughly US market hours
+    # across both EST and EDT. GitHub may delay scheduled runs slightly.
+    - cron: "*/30 13-21 * * 1-5"
+  workflow_dispatch: {} # lets you trigger a deploy by hand from the Actions tab
+
+# Never let two deploys race each other.
+concurrency:
+  group: scan-and-deploy
+  cancel-in-progress: false
+
+jobs:
+  scan-and-deploy:
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run the scan
+        env:
+          UW_API_KEY: ${{ secrets.UW_API_KEY }}
+        run: python -m agentic scan
+
+      - name: Stage the latest dashboard as the site index
+        run: |
+          set -euo pipefail
+          latest="$(ls -t output/terminal-*.html | head -1)"
+          if [ -z "$latest" ]; then
+            echo "No dashboard was generated — aborting deploy." >&2
+            exit 1
+          fi
+          mkdir -p public
+          cp "$latest" public/index.html
+          echo "Staged $latest -> public/index.html"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      - name: Pull Vercel project settings
+        run: vercel pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
+
+      - name: Build with Vercel
+        run: vercel build --prod --token="${{ secrets.VERCEL_TOKEN }}"
+
+      - name: Deploy to Vercel (production)
+        run: vercel deploy --prebuilt --prod --token="${{ secrets.VERCEL_TOKEN }}"
